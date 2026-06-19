@@ -50,6 +50,12 @@ header h1{font-size:17px;font-weight:700;white-space:nowrap}
 .media-grid.n2 img,.media-grid.n3 img{height:180px}
 .media-grid.n4 img,.media-grid.nN img{height:160px}
 .ext-link{background:#f0f2f5;border-radius:6px;padding:10px 12px;margin-top:8px;font-size:13px}
+.mr-card{background:white;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,.1);margin-bottom:10px;padding:14px 16px}
+.mr-card .mr-title{font-size:15px;font-weight:500;margin-bottom:4px}
+.mr-card .mr-title a{color:#1c1e21}
+.mr-card .mr-title a:hover{color:#1877f2}
+.mr-card .mr-url{font-size:12px;color:#65676b;word-break:break-all}
+.mr-card .mr-date{font-size:12px;color:#65676b;margin-top:4px}
 .more-images{background:#00000033;color:white;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;border-radius:4px;height:160px;cursor:default}
 
 /* pagination */
@@ -80,6 +86,9 @@ header h1{font-size:17px;font-weight:700;white-space:nowrap}
 
 <div class="layout">
   <aside class="sidebar">
+    <div class="sidebar-box" style="margin-bottom:12px">
+      <a href="#media" id="media-link" style="display:block;font-size:14px;font-weight:700;color:#e65100;text-decoration:none">媒體報導</a>
+    </div>
     <div class="sidebar-box">
       <h2>月份封存</h2>
       <ul class="month-list" id="month-list"></ul>
@@ -136,6 +145,13 @@ async function route() {
     return;
   }
 
+  const mediaMatch = hash.match(/^media(?:\/p(\d+))?$/);
+  if (mediaMatch) {
+    const page = mediaMatch[1] ? parseInt(mediaMatch[1], 10) - 1 : 0;
+    await showMediaReports(page);
+    return;
+  }
+
   const postMatch = hash.match(/^post\/(\d+)$/);
   if (postMatch) {
     await showPost(parseInt(postMatch[1], 10));
@@ -175,6 +191,7 @@ function setHash(hash, replace = false) {
 
 async function showMonth(month, page = 0) {
   document.getElementById('search-input').value = '';
+  document.getElementById('media-link').style.fontWeight = '';
   document.querySelectorAll('.month-list a').forEach(a =>
     a.classList.toggle('active', a.dataset.month === month));
   const posts = await loadJSON(`data/${month}.json`);
@@ -186,6 +203,7 @@ async function showMonth(month, page = 0) {
 }
 
 async function showSearch(term, page = 0) {
+  document.getElementById('media-link').style.fontWeight = '';
   document.querySelectorAll('.month-list a').forEach(a => a.classList.remove('active'));
   const lc = term.toLowerCase();
   let results = [];
@@ -223,6 +241,49 @@ async function showPost(ts) {
     <a href="#${month}" style="color:#65676b;font-size:13px">&#8592; ${month}</a>
   </div>`;
   html += renderPostHTML(post, true);
+  document.getElementById('main').innerHTML = html;
+  window.scrollTo(0, 0);
+}
+
+async function showMediaReports(page = 0) {
+  document.getElementById('search-input').value = '';
+  document.querySelectorAll('.month-list a').forEach(a => a.classList.remove('active'));
+  document.getElementById('media-link').style.fontWeight = '900';
+  const reports = await loadJSON('data/media_reports.json');
+  if (!reports || reports.length === 0) {
+    document.getElementById('main').innerHTML = '<div class="no-results">No media reports found.</div>';
+    return;
+  }
+  const total = reports.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (page >= totalPages) page = 0;
+  const slice = reports.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const label = `媒體報導 — ${total} 則`;
+  document.getElementById('header-info').textContent = label;
+  document.title = `媒體報導 - 江明宗 (kiang) Facebook 貼文存檔`;
+
+  let html = `<div class="section-title">${esc(label)}</div>`;
+  for (const r of slice) {
+    const date = r.ts ? new Date(r.ts * 1000).toLocaleDateString('zh-TW') : '';
+    const title = r.title || r.url;
+    const domain = (() => { try { return new URL(r.url).hostname; } catch { return ''; } })();
+    html += `<div class="mr-card">`;
+    html += `<div class="mr-title"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(title)}</a></div>`;
+    html += `<div class="mr-url">${esc(domain)}</div>`;
+    html += `<div class="mr-date">${esc(date)}</div>`;
+    html += `</div>`;
+  }
+
+  if (totalPages > 1) {
+    const prevHash = page > 0 ? (page === 1 ? 'media' : `media/p${page}`) : null;
+    const nextHash = page < totalPages - 1 ? `media/p${page + 2}` : null;
+    html += `<div class="pagination">
+      ${prevHash ? `<a class="pg-btn" href="#${prevHash}">&#8592; Newer</a>` : `<span class="pg-btn disabled">&#8592; Newer</span>`}
+      <span class="page-info">${page+1} / ${totalPages}</span>
+      ${nextHash ? `<a class="pg-btn" href="#${nextHash}">Older &#8594;</a>` : `<span class="pg-btn disabled">Older &#8594;</span>`}
+    </div>`;
+  }
+
   document.getElementById('main').innerHTML = html;
   window.scrollTo(0, 0);
 }
